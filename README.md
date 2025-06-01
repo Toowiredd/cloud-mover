@@ -40,12 +40,18 @@ cloud-mover/
 
 ## Setup
 
-1. Ensure Python is installed
-2. Configure rclone with Google Drive:
+1. **Download rclone.exe**:
+   - Download from [rclone.org](https://rclone.org/downloads/)
+   - Place `rclone.exe` in the project root directory
+
+2. **Ensure Python is installed**
+
+3. **Configure rclone with Google Drive**:
    ```
    rclone config
    ```
-3. Run the application:
+
+4. **Run the application**:
    ```
    START-CLOUD-MOVER.bat
    ```
