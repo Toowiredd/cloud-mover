@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RClone Drop Portal - Upload to Google Drive</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 2rem;
+        }
+        
+        .container {
+            max-width: 800px;
+            width: 100%;
+        }
+        
+        h1 {
+            text-align: center;
+            font-size: 2.5rem;
+            margin-bottom: 2rem;
+            background: linear-gradient(to right, #3b82f6, #8b5cf6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .drop-zone {
+            border: 3px dashed #3b82f6;
+            border-radius: 1rem;
+            padding: 4rem;
+            text-align: center;
+            transition: all 0.3s ease;
+            background: #1e293b;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .drop-zone.dragover {
+            border-color: #8b5cf6;
+            background: #2d3748;
+            transform: scale(1.02);
+        }
+        
+        .drop-zone-text {
+            font-size: 1.25rem;
+            margin-bottom: 1rem;
+        }
+        
+        .drop-zone-subtext {
+            color: #94a3b8;
+            font-size: 0.875rem;
+        }
+        
+        input[type="file"] {
+            position: absolute;
+            left: -9999px;
+        }
+        
+        .file-list {
+            margin-top: 2rem;
+            background: #1e293b;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            display: none;
+        }
+        
+        .file-list.active {
+            display: block;
+        }
+        
+        .file-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem;
+            border-bottom: 1px solid #334155;
+        }
+        
+        .file-item:last-child {
+            border-bottom: none;
+        }
+        
+        .file-name {
+            font-size: 0.875rem;
+        }
+        
+        .file-size {
+            color: #94a3b8;
+            font-size: 0.75rem;
+        }
+        
+        .upload-button {
+            background: linear-gradient(to right, #3b82f6, #8b5cf6);
+            color: white;
+            border: none;
+            padding: 0.75rem 2rem;
+            border-radius: 0.5rem;
+            font-size: 1rem;
+            cursor: pointer;
+            margin-top: 1rem;
+            width: 100%;
+            transition: opacity 0.3s ease;
+        }
+        
+        .upload-button:hover {
+            opacity: 0.9;
+        }
+        
+        .upload-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 4px;
+            background: #334155;
+            border-radius: 2px;
+            overflow: hidden;
+            margin-top: 0.5rem;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(to right, #3b82f6, #8b5cf6);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+        
+        .status-message {
+            margin-top: 1rem;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            text-align: center;
+            display: none;
+        }
+        
+        .status-message.success {
+            background: #065f46;
+            color: #6ee7b7;
+            display: block;
+        }
+        
+        .status-message.error {
+            background: #7f1d1d;
+            color: #fca5a5;
+            display: block;
+        }
+        
+        .config-warning {
+            background: #7c2d12;
+            color: #fed7aa;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            margin-bottom: 2rem;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>RClone Drop Portal</h1>
+        
+        <div class="config-warning" id="configWarning">
+            ⚠️ Google Drive is not configured. Please run: <code>rclone config</code> and set up a remote named "gdrive"
+        </div>
+        
+        <div class="drop-zone" id="dropZone">
+            <div class="drop-zone-text">Drag & Drop your folder here</div>
+            <div class="drop-zone-subtext">or click to browse (max 50GB)</div>
+            <input type="file" id="fileInput" webkitdirectory directory multiple>
+        </div>
+        
+        <div class="file-list" id="fileList">
+            <h3 style="margin-bottom: 1rem;">Selected Files</h3>
+            <div id="fileItems"></div>
+            <button class="upload-button" id="uploadButton">Upload to Google Drive</button>
+            <div class="progress-bar" id="progressBar" style="display: none;">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+        </div>
+        
+        <div class="status-message" id="statusMessage"></div>
+    </div>
+    
+    <script>
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const fileList = document.getElementById('fileList');
+        const fileItems = document.getElementById('fileItems');
+        const uploadButton = document.getElementById('uploadButton');
+        const progressBar = document.getElementById('progressBar');
+        const progressFill = document.getElementById('progressFill');
+        const statusMessage = document.getElementById('statusMessage');
+        const configWarning = document.getElementById('configWarning');
+        
+        let selectedFiles = [];
+        
+        // Check rclone configuration
+        async function checkConfig() {
+            try {
+                const response = await fetch('/check-config');
+                const data = await response.json();
+                if (!data.configured) {
+                    configWarning.style.display = 'block';
+                    uploadButton.disabled = true;
+                }
+            } catch (error) {
+                console.error('Failed to check config:', error);
+            }
+        }
+        
+        checkConfig();
+        
+        // Click to browse
+        dropZone.addEventListener('click', () => {
+            fileInput.click();
+        });
+        
+        // Drag and drop events
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+        
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
+        
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            handleFiles(e.dataTransfer.items);
+        });
+        
+        // File input change
+        fileInput.addEventListener('change', (e) => {
+            handleFiles(e.target.files);
+        });
+        
+        // Handle files
+        async function handleFiles(items) {
+            selectedFiles = [];
+            let totalSize = 0;
+            
+            // Convert FileList or DataTransferItemList to array
+            const entries = [];
+            if (items instanceof FileList) {
+                for (let file of items) {
+                    selectedFiles.push(file);
+                    totalSize += file.size;
+                }
+            } else {
+                // Handle drag and drop with folders
+                for (let item of items) {
+                    if (item.kind === 'file') {
+                        const entry = item.webkitGetAsEntry();
+                        if (entry) {
+                            await traverseFileTree(entry, '');
+                        }
+                    }
+                }
+            }
+            
+            async function traverseFileTree(item, path) {
+                if (item.isFile) {
+                    await new Promise((resolve) => {
+                        item.file((file) => {
+                            selectedFiles.push(file);
+                            totalSize += file.size;
+                            resolve();
+                        });
+                    });
+                } else if (item.isDirectory) {
+                    const dirReader = item.createReader();
+                    const entries = await new Promise((resolve) => {
+                        dirReader.readEntries(resolve);
+                    });
+                    for (let entry of entries) {
+                        await traverseFileTree(entry, path + item.name + '/');
+                    }
+                }
+            }
+            
+            // Check size limit (50GB)
+            const maxSize = 50 * 1024 * 1024 * 1024; // 50GB in bytes
+            if (totalSize > maxSize) {
+                showStatus('error', 'Total size exceeds 50GB limit');
+                return;
+            }
+            
+            displayFiles();
+        }
+        
+        // Display selected files
+        function displayFiles() {
+            fileItems.innerHTML = '';
+            let totalSize = 0;
+            
+            selectedFiles.forEach(file => {
+                totalSize += file.size;
+                const item = document.createElement('div');
+                item.className = 'file-item';
+                item.innerHTML = `
+                    <div>
+                        <div class="file-name">${file.webkitRelativePath || file.name}</div>
+                        <div class="file-size">${formatFileSize(file.size)}</div>
+                    </div>
+                `;
+                fileItems.appendChild(item);
+            });
+            
+            if (selectedFiles.length > 0) {
+                fileList.classList.add('active');
+                const totalSizeDiv = document.createElement('div');
+                totalSizeDiv.className = 'file-item';
+                totalSizeDiv.innerHTML = `
+                    <div>
+                        <div class="file-name"><strong>Total: ${selectedFiles.length} files</strong></div>
+                        <div class="file-size"><strong>${formatFileSize(totalSize)}</strong></div>
+                    </div>
+                `;
+                fileItems.appendChild(totalSizeDiv);
+            }
+        }
+        
+        // Format file size
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+        
+        // Upload files
+        uploadButton.addEventListener('click', async () => {
+            if (selectedFiles.length === 0) return;
+            
+            uploadButton.disabled = true;
+            progressBar.style.display = 'block';
+            statusMessage.style.display = 'none';
+            
+            const formData = new FormData();
+            selectedFiles.forEach(file => {
+                formData.append('files', file, file.webkitRelativePath || file.name);
+            });
+            
+            try {
+                const response = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    showStatus('success', 'Upload started! Check your Google Drive.');
+                    progressFill.style.width = '100%';
+                    
+                    // Reset after success
+                    setTimeout(() => {
+                        selectedFiles = [];
+                        fileList.classList.remove('active');
+                        progressBar.style.display = 'none';
+                        progressFill.style.width = '0%';
+                        uploadButton.disabled = false;
+                    }, 3000);
+                } else {
+                    showStatus('error', result.message || 'Upload failed');
+                    uploadButton.disabled = false;
+                }
+            } catch (error) {
+                showStatus('error', 'Network error: ' + error.message);
+                uploadButton.disabled = false;
+            }
+        });
+        
+        // Show status message
+        function showStatus(type, message) {
+            statusMessage.className = 'status-message ' + type;
+            statusMessage.textContent = message;
+            statusMessage.style.display = 'block';
+            
+            setTimeout(() => {
+                statusMessage.style.display = 'none';
+            }, 5000);
+        }
+    </script>
+</body>
+</html>

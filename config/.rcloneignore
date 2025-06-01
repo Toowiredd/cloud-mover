@@ -1,0 +1,80 @@
+# RClone Ignore File
+# Add patterns to exclude files/folders from upload
+# Similar to .gitignore syntax
+
+# Temporary files
+*.tmp
+*.temp
+~*
+.~*
+
+# System files
+Thumbs.db
+.DS_Store
+desktop.ini
+*.sys
+
+# Package managers and dependencies - preserve project structure
+**/node_modules/
+**/node_modules/**/node_modules/
+**/node_modules/**/**/node_modules/
+**/__pycache__/
+**/*.pyc
+**/.env
+**/.venv/
+**/venv/
+**/env/
+**/ENV/
+**/bower_components/
+**/vendor/
+**/.tox/
+**/pip-log.txt
+**/jspm_packages/
+**/packages/bin/
+**/.npm/
+**/.yarn/
+**/.pnp/
+
+# Version control - keep project structure
+**/.git/
+**/.svn/
+**/.hg/
+
+# Build artifacts - but preserve project structure
+**/bin/
+**/obj/
+**/target/
+**/build/
+**/dist/
+**/*.exe
+**/*.dll
+**/*.so
+**/*.dylib
+
+# IDE files - keep project structure
+**/.vscode/
+**/.idea/
+**/*.swp
+**/*.swo
+**/*~
+
+# Infrastructure but keep project structure
+**/.terraform/
+**/*.tfstate*
+
+# Logs and caches but keep project structure
+**/logs/
+**/*.log
+**/npm-debug.log*
+**/yarn-debug.log*
+**/yarn-error.log*
+**/.cache/
+**/.sass-cache/
+**/.eslintcache
+**/.parcel-cache/
+
+# Specific package deep nesting patterns
+**/node_modules/**/node_modules/**/node_modules/
+**/site-packages/**/site-packages/
+**/lib/python*/site-packages/
+**/lib64/python*/site-packages/
