@@ -79,3 +79,7 @@ config/auth.json
 
 # Test folders
 test_data/
+
+# Executables
+rclone.exe
+*.exe
